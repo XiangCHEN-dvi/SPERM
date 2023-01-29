@@ -2,6 +2,7 @@ import numpy as np
 from scipy.optimize import lsq_linear
 from sklearn.utils.validation import _check_sample_weight
 from sklearn.linear_model import LinearRegression as SKLearnLinearRegression
+from sklearn.linear_model._base import _preprocess_data, _rescale_data
 from .._shape_prior import *
 
 class LinearRegression(SKLearnLinearRegression):
@@ -19,24 +20,24 @@ class LinearRegression(SKLearnLinearRegression):
             raise ValueError("Invalid shape_prior input.")
         
     def fit(self, X, y, sample_weight=None):
+        self._validate_params()
         X, y = self._validate_data(
             X, y, y_numeric=True, multi_output=True
         )        
 
-        if sample_weight is not None:
-            sample_weight = _check_sample_weight(sample_weight, X, dtype=X.dtype)
+        sample_weight = _check_sample_weight(
+            sample_weight, X, dtype=X.dtype, only_non_negative=True
+        )
 
-        X, y, X_offset, y_offset, X_scale = self._preprocess_data(
+        X, y, X_offset, y_offset, X_scale = _preprocess_data(
             X, y,
             fit_intercept=self.fit_intercept,
             normalize=False,
             copy=self.copy_X,
             sample_weight=sample_weight,
-            return_mean=True,
         )
 
-        if sample_weight is not None:
-            X, y = _rescale_data(X, y, sample_weight)
+        X, y, _ = _rescale_data(X, y, sample_weight)
 
         lb = [-np.inf] * X.shape[1]
         ub = [np.inf] * X.shape[1]

@@ -30,7 +30,7 @@ class ShapePrior:
                     raise ValueError("Lipschitz constant cannot be negative: %s"%p)
                 self.prior_list.append([int(metas[0]), metas[1], int(metas[2])])
     
-        # base_model-specific prior validity check
+        # base_model specific prior validity check
         if self.base_model=='linear': # including LinearRegression and Ridge
             for p in self.prior_list:
                 if not p[1] in ['increasing','decreasing','Lipschitz']:
