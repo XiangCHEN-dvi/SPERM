@@ -1,2 +1,2 @@
-Multi-Layer Perceptron
+Shape Prior
 ======================
