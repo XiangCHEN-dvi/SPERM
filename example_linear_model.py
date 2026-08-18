@@ -1,3 +1,6 @@
+# Author: Xiang CHEN <xiangchen.ai@outlook.com>
+# License: Apache Software License
+
 import numpy as np
 import sperm
 from sperm.linear_model import LinearRegression, Ridge

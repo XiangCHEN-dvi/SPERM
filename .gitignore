@@ -132,3 +132,5 @@ dmypy.json
 
 # personalized settings
 *.png
+.vscode/
+.DS_Store

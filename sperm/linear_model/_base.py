@@ -1,3 +1,6 @@
+# Author: Xiang CHEN <xiangchen.ai@outlook.com>
+# License: Apache Software License
+
 import numpy as np
 from scipy.optimize import lsq_linear
 from sklearn.utils.validation import _check_sample_weight
@@ -6,6 +9,18 @@ from sklearn.linear_model._base import _preprocess_data, _rescale_data
 from .._shape_prior import *
 
 class LinearRegression(SKLearnLinearRegression):
+    """
+    Linear regression model inherited from scikit-learn class sklearn.linear_model.LinearRegression.
+
+    Parameters
+    ----------
+    fit_intercept: bool, default=True
+        Whether to calculate the intercept for this model.
+    copy_X: bool, default=True
+        If True, X will be copied; else, it may be overwritten.
+    shape_prior: None or str or list of strings, default=None
+        Shape prior information following the predefined format.
+    """
     def __init__(self, fit_intercept=True, copy_X=True, shape_prior=None):
         self.fit_intercept = fit_intercept
         self.copy_X = copy_X
@@ -18,12 +33,29 @@ class LinearRegression(SKLearnLinearRegression):
             self.shape_prior = ShapePrior('linear', shape_prior)
         else:
             raise ValueError("Invalid shape_prior input.")
-        
+
     def fit(self, X, y, sample_weight=None):
+        """
+        Fit the linear regression model. A RuntimeError will be raised if the fitting failed.
+
+        Parameters
+        ----------
+        X: array-like of shape (n_samples, n_features)
+            Regression feature.
+        y: array-like of shape (n_samples,)
+            Regression target.
+        sample_weight: array-like of shape (n_samples,), default=None
+            Sample weight for each sample.
+
+        Returns
+        -------
+        self: object
+            Fitted Regressor.
+        """
         self._validate_params()
         X, y = self._validate_data(
             X, y, y_numeric=True, multi_output=True
-        )        
+        )
 
         sample_weight = _check_sample_weight(
             sample_weight, X, dtype=X.dtype, only_non_negative=True
@@ -57,4 +89,3 @@ class LinearRegression(SKLearnLinearRegression):
             return self
         else:
             raise RuntimeError("fitting failed.")
-        

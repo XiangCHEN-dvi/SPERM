@@ -1,3 +1,6 @@
+# Author: Xiang CHEN <xiangchen.ai@outlook.com>
+# License: Apache Software License
+
 import numpy as np
 import numbers
 from scipy.optimize import minimize
@@ -7,6 +10,22 @@ from sklearn.linear_model._base import _preprocess_data, _rescale_data
 from .._shape_prior import *
 
 class Ridge(SKLearn_BaseRidge):
+    """
+    Ridge regression model inherited from scikit-learn class sklearn.linear_model._ridge._BaseRidge.
+
+    Parameters
+    ----------
+    alpha: float, default=1.0
+        Regularization constant.
+    fit_intercept: bool, default=True
+        Whether to calculate the intercept for this model.
+    copy_X: bool, default=True
+        If True, X will be copied; else, it may be overwritten.
+    tol: float, default=1e-4
+        Optimization tolerance passed to scipy.optimize.minimize.
+    shape_prior: None or str or list of strings, default=None
+        Shape prior information following the predefined format.
+    """
     def __init__(self, alpha=1.0, fit_intercept=True, copy_X=True,
                  tol=1e-4, shape_prior=None):
         self.alpha = alpha
@@ -24,10 +43,27 @@ class Ridge(SKLearn_BaseRidge):
             raise ValueError("Invalid shape_prior input.")
 
     def fit(self, X, y, sample_weight=None):
+        """
+        Fit the ridge regression model. A RuntimeError will be raised if the fitting failed.
+
+        Parameters
+        ----------
+        X: array-like of shape (n_samples, n_features)
+            Regression feature.
+        y: array-like of shape (n_samples,)
+            Regression target.
+        sample_weight: array-like of shape (n_samples,), default=None
+            Sample weight for each sample.
+
+        Returns
+        -------
+        self: object
+            Fitted Regressor.
+        """
         self._validate_params()
         X, y = self._validate_data(
             X, y, y_numeric=True, multi_output=True
-        )        
+        )
 
         if sample_weight is not None:
             sample_weight = _check_sample_weight(sample_weight, X, dtype=X.dtype)
@@ -65,4 +101,3 @@ class Ridge(SKLearn_BaseRidge):
             return self
         else:
             raise RuntimeError("fitting failed.")
-        
