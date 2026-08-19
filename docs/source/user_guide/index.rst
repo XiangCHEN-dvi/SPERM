@@ -4,6 +4,6 @@ User Guide
 .. toctree::
    :maxdepth: 2
 
-   shape_prior
+   priors
    linear_model
    mlp

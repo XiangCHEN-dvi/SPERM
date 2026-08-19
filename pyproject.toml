@@ -10,13 +10,52 @@ authors = [
 ]
 description = "SPERM (Shape Prior Embedded Regression Models) targets providing flexible shape prior embeddings into base regression models."
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "scikit-learn>=1.6",
+  "scipy>=1.10",
+]
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8,<9",
+]
+examples = [
+  "matplotlib",
+]
+docs = [
+  "myst-parser",
+  "sphinx",
+  "sphinx-rtd-theme",
+]
+dev = [
+  "matplotlib",
+  "myst-parser",
+  "pytest>=8,<9",
+  "pytest-cov",
+  "ruff",
+  "sphinx",
+  "sphinx-rtd-theme",
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/XiangCHEN-dvi/sperm"
 "Bug Tracker" = "https://github.com/XiangCHEN-dvi/sperm/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sperm"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["src"]
