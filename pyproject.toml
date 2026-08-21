@@ -11,6 +11,15 @@ authors = [
 description = "SPERM (Shape Prior Embedded Regression Models) targets providing flexible shape prior embeddings into base regression models."
 readme = "README.md"
 requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = [
+  "machine-learning",
+  "regression",
+  "scikit-learn",
+  "shape-constraints",
+  "shape-priors",
+]
 dependencies = [
   "numpy>=1.24",
   "scikit-learn>=1.6",
@@ -23,7 +32,6 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
-  "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
 ]
 
@@ -36,26 +44,36 @@ examples = [
 ]
 docs = [
   "myst-parser",
+  "pydata-sphinx-theme",
   "sphinx",
-  "sphinx-rtd-theme",
+  "sphinx-copybutton",
+  "sphinx-design",
 ]
 dev = [
   "matplotlib",
   "myst-parser",
+  "pydata-sphinx-theme",
   "pytest>=8,<9",
   "pytest-cov",
   "ruff",
   "sphinx",
-  "sphinx-rtd-theme",
+  "sphinx-copybutton",
+  "sphinx-design",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/XiangCHEN-dvi/sperm"
-"Bug Tracker" = "https://github.com/XiangCHEN-dvi/sperm/issues"
+Homepage = "https://xiangchen-dvi.github.io/sperm/"
+Documentation = "https://xiangchen-dvi.github.io/sperm/"
+Repository = "https://github.com/XiangCHEN-dvi/sperm"
+Issues = "https://github.com/XiangCHEN-dvi/sperm/issues"
+PyPI = "https://pypi.org/project/sperm/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sperm"]
 
 [tool.pytest.ini_options]
-testpaths = ["test"]
+testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py310"

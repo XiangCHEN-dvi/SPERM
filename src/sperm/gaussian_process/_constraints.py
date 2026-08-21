@@ -73,9 +73,9 @@ def normalize_gpr_priors(priors, n_features, feature_names):
         for feature, items in resolved.items()
         if any(isinstance(p, Unimodality) for p in items)
     }
-    if unimodal_features and (n_features != 1 or unimodal_features != {0}):
+    if len(unimodal_features) > 1:
         raise ValueError(
-            "GPR unimodality currently requires exactly one input feature."
+            "GPR currently supports unimodality on at most one feature."
         )
 
     normalized = Priors(value=value, features=resolved, curvature=curvature)
@@ -132,17 +132,22 @@ def compile_gpr_constraints(basis, priors):
 
 
 def compile_gpr_constraint_candidates(basis, priors):
-    """Compile the polyhedral union induced by one-dimensional unimodality."""
+    """Compile the polyhedral union induced by feature-wise unimodality."""
     common_matrix, common_bound = compile_gpr_constraints(basis, priors)
-    modes = _unimodality_modes(priors.features.get(0, ()))
-    if not modes:
+    unimodal = [
+        (feature, _unimodality_modes(feature_priors))
+        for feature, feature_priors in priors.features.items()
+        if _unimodality_modes(feature_priors)
+    ]
+    if not unimodal:
         return ((common_matrix, common_bound, None),)
 
-    derivative = basis.derivative_control_map(0, 1)
+    feature, modes = unimodal[0]
+    derivative = basis.derivative_control_map(feature, 1)
     if modes == {"minimum", "maximum"}:
         patterns = (
-            ("increasing", -derivative),
-            ("decreasing", derivative),
+            ((feature, "increasing"), -derivative),
+            ((feature, "decreasing"), derivative),
         )
     else:
         mode = next(iter(modes))
@@ -152,7 +157,7 @@ def compile_gpr_constraint_candidates(basis, priors):
                 signs = np.concatenate((np.ones(turn), -np.ones(len(derivative) - turn)))
             else:
                 signs = np.concatenate((-np.ones(turn), np.ones(len(derivative) - turn)))
-            patterns.append(((mode, turn), signs[:, None] * derivative))
+            patterns.append(((feature, mode, turn), signs[:, None] * derivative))
 
     candidates = []
     for label, matrix in patterns:

@@ -1,8 +1,13 @@
 # SPERM
 
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-0f766e)](https://xiangchen-dvi.github.io/sperm/)
+
 SPERM (Shape-Prior-Embedded Regression Models) embeds shape priors such as
 value bounds, monotonicity, and slope bounds into regression models while
 keeping an API compatible with scikit-learn.
+
+Read the [documentation](https://xiangchen-dvi.github.io/sperm/) for installation,
+concepts, model guides, examples, and the complete API reference.
 
 ## Quick start
 
@@ -35,8 +40,9 @@ Priors are normalized into explicit, feature-independent types:
 
 `Unimodality("minimum")` and `Unimodality("maximum")` require a feature slice
 to have a single valley or peak, respectively, while all other features are
-held fixed. The current implementations support this coordinate-wise property
-only when the model has one input feature.
+held fixed. GPR supports this property on one selected feature of a
+multi-feature additive model; tree and MLP implementations currently require
+one input feature.
 
 Global value priors and per-feature slope priors can be combined explicitly:
 
@@ -110,10 +116,12 @@ models = [
 ```
 
 Monotonicity is enforced during fitting by the underlying tree algorithms.
-Value bounds are enforced exactly on public predictions by clipping their
-outputs; clipping preserves monotonicity. Tree models reject `SlopeBound`,
-because a nonconstant piecewise-constant function has no finite global slope
-bound.
+Decision trees optimize bounded leaf values directly, using their constrained
+squared-error loss when selecting splits. Random forests apply the same rule
+to every constituent tree, so their average remains bounded. Histogram
+gradient boosting retains exact clipping of the final additive prediction;
+clipping preserves monotonicity. Tree models reject `SlopeBound`, because a
+nonconstant piecewise-constant function has no finite global slope bound.
 
 All three tree regressors also support one-dimensional
 `Unimodality("minimum")` and `Unimodality("maximum")` priors. Their constrained
@@ -171,11 +179,13 @@ value bounds additionally constrain the tail slopes. Constraint counts grow
 linearly with `n_basis`. Mathematically degrading full-domain combinations,
 including convexity with a finite upper bound and concavity with a finite lower
 bound, are rejected. Global value bounds currently require one input feature.
-One-dimensional minimum-mode and maximum-mode unimodality enumerate the
-possible turning positions of the derivative spline. Each position is a small convex
-quadratic program with linear constraints; the closest constrained posterior
-mean is selected. These priors can be combined with value, slope, monotonicity,
-and curvature priors. Redundant combinations are simplified before fitting.
+Feature-wise minimum-mode and maximum-mode unimodality enumerate the possible
+turning positions of the selected component's derivative spline. Each position
+is a small convex quadratic program with linear constraints; the closest
+constrained posterior mean is selected. One selected feature may be unimodal
+in a multi-feature additive model. The prior can be combined with slope,
+monotonicity, and curvature priors. Redundant combinations are simplified
+before fitting.
 
 Text specifications are available as an explicit configuration boundary:
 
@@ -197,21 +207,74 @@ python -m pip install -U sperm
 
 ## Functionalities
 
-The following table describes what is technically achievable over the complete
-input space. It is a design map rather than a statement about the current
-implementation.
+<!-- functionality-matrix-start -->
 
-|                  | linear model | Tree-based models |  MLP  |  GPR  |
-| ---------------- | :----------: | :---------------: | :---: | :---: |
-| ValueBound       |      X       |         √         |   √   |   √   |
-| Monotonicity     |      √       |         √         |   √   |   √   |
-| SlopeBound       |      √       |         X         |   -   |   √   |
-| Unimodality      |      X       |         √         |   √   |   √   |
-| Convexity        |      X       |         X         |   √   |   √   |
+The following table describes the current implementation over the complete
+input space. Feature-wise priors constrain one feature at a time while the
+others are fixed; cross-feature priors constrain input features jointly.
 
-- **√**: supported.
-- **-**: not yet supported.
-- **X**: not supported (it is trivial or impossible or degrading to provide such shape priors on the base model).
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Property</th>
+      <th>Linear models</th>
+      <th>Tree-based models</th>
+      <th>MLP</th>
+      <th>GPR</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Output</td>
+      <td>ValueBound</td>
+      <td align="center">X</td>
+      <td align="center">√</td>
+      <td align="center">√</td>
+      <td align="center">√<sup>1</sup></td>
+    </tr>
+    <tr>
+      <td rowspan="3">Feature-Wise</td>
+      <td>Monotonicity</td>
+      <td align="center">√</td>
+      <td align="center">√</td>
+      <td align="center">√</td>
+      <td align="center">⍻</td>
+    </tr>
+    <tr>
+      <td>SlopeBound</td>
+      <td align="center">√</td>
+      <td align="center">X</td>
+      <td align="center">-</td>
+      <td align="center">⍻</td>
+    </tr>
+    <tr>
+      <td>Unimodality</td>
+      <td align="center">X</td>
+      <td align="center">√<sup>1</sup></td>
+      <td align="center">√<sup>1</sup></td>
+      <td align="center">⍻<sup>2</sup></td>
+    </tr>
+    <tr>
+      <td>Cross-Feature</td>
+      <td>Convexity</td>
+      <td align="center">X</td>
+      <td align="center">X</td>
+      <td align="center">√</td>
+      <td align="center">⍻</td>
+    </tr>
+  </tbody>
+</table>
+
+- √: supported.
+- √<sup>1</sup>: supported, but the current implementation requires exactly
+  one input feature.
+- ⍻: supported with a substantial loss of expressive power.
+- ⍻<sup>2</sup>: supported with a substantial loss of expressive power and on
+  at most one feature at a time.
+- -: not yet supported.
+- X: not supported because the property is trivial or impossible for the base
+  model, or would collapse it to a degenerate function class.
 
 
 
@@ -221,13 +284,15 @@ Interpretation by model family:
   A finite global value bound would force all slopes to zero and is therefore
   rejected. Affine functions are both convex and concave, and are unimodal in
   both modes, but this is only a trivial subset of those function classes.
-- **MLP:** bounded output transformations, monotone architectures, universal
-  Lipschitz architectures, and input-convex neural networks provide strong
-  constructions. Unimodality needs a specialized architecture or optimization
-  formulation.
-- **Tree-based models:** bounded leaf values give exact value bounds. Standard
-  trees can enforce monotonicity by coordinating leaf predictions across
-  ordered splits, and monotone step functions retain broad approximation power.
+- **MLP:** bounded output transformations, monotone architectures, and
+  input-convex neural networks provide strong constructions. Unimodality uses
+  a specialized one-dimensional architecture with a trainable turning point.
+- **Tree-based models:** decision trees and random forests optimize bounded
+  leaf values during fitting, while gradient boosting clips its final additive
+  prediction. Both constructions give exact value bounds and preserve the
+  supported shape constraints. Standard trees can enforce monotonicity by
+  coordinating leaf predictions across ordered splits, and monotone step
+  functions retain broad approximation power.
   However, piecewise-constant trees are discontinuous, so a nonconstant tree
   cannot have a finite global slope or Lipschitz bound, or be globally convex.
   Those combinations require continuous piecewise-linear model trees,
@@ -235,8 +300,9 @@ Interpretation by model family:
   additionally requires globally coordinated leaf regions rather than
   independent split constraints.
 - **GPR:** the clamped B-spline/P-spline sieve is dense in the corresponding
-  value-bounded, derivative-bounded, monotone, unimodal, and
-  convex/concave function classes on compact subsets as `n_basis` grows.
+  univariate and additive-component shape classes on compact subsets as
+  `n_basis` grows. Its additive multivariate structure excludes cross-feature
+  interactions, which is the expressive-power loss marked by `⍻`.
   Linear constraints on spline controls and divided differences guarantee each
   convex candidate over the complete input space. Unimodality uses a linear
   number of turning-point candidates rather than a single convex feasible set.
@@ -248,8 +314,14 @@ Representative references include
 and
 [Gaussian processes with linear-operator inequality constraints](https://jmlr.org/papers/v20/19-065.html).
 
+<!-- functionality-matrix-end -->
+
 ## Known limitations
+
+<!-- known-limitations-start -->
 
 - All models currently support single-output regression only.
 - Priors currently hold over the complete input space rather than a selected
   interval or domain.
+
+<!-- known-limitations-end -->

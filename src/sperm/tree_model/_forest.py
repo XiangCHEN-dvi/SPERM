@@ -5,7 +5,11 @@ from sklearn.ensemble import RandomForestRegressor as SKRandomForestRegressor
 from sklearn.utils.validation import validate_data
 
 from ._base import _TreePriorMixin
-from ._decision_tree import _validate_sample_weight
+from ._bounded_tree import _BoundedTree
+from ._decision_tree import (
+    _validate_bounded_tree_parameters,
+    _validate_sample_weight,
+)
 from ._unimodal_tree import _UnimodalTree
 
 
@@ -65,6 +69,8 @@ class RandomForestRegressor(_TreePriorMixin, SKRandomForestRegressor):
             return self._fit_unknown_monotonic_direction(X, y, sample_weight)
         if self.unimodality_constraint_ is not None:
             return self._fit_unimodality(X, y, sample_weight)
+        if np.isfinite(self.value_bounds_).any():
+            return self._fit_bounded(X, y, sample_weight)
         return super().fit(X, y, sample_weight=sample_weight)
 
     def _fit_unimodality(self, X, y, sample_weight):
@@ -124,11 +130,81 @@ class RandomForestRegressor(_TreePriorMixin, SKRandomForestRegressor):
 
         self.turning_point_ = turning_point
         self.n_outputs_ = 1
+        self._value_bounds_embedded_ = True
+        return self
+
+    def _fit_bounded(self, X, y, sample_weight):
+        _validate_bounded_tree_parameters(self)
+        if self.oob_score or self.warm_start:
+            raise ValueError(
+                "oob_score and warm_start are not supported with training-time "
+                "ValueBound."
+            )
+        if not self.bootstrap and self.max_samples is not None:
+            raise ValueError("max_samples requires bootstrap=True.")
+        X_array, y_array = validate_data(
+            self,
+            X,
+            y,
+            reset=True,
+            y_numeric=True,
+        )
+        if y_array.ndim != 1:
+            raise ValueError("ValueBound supports single-output regression.")
+        weights = _validate_sample_weight(sample_weight, X_array.shape[0])
+        rng = np.random.default_rng(self.random_state)
+        sample_size = _bootstrap_size(self.max_samples, X_array.shape[0])
+        self._bounded_estimators_ = []
+
+        for _ in range(self.n_estimators):
+            indices = (
+                rng.integers(0, X_array.shape[0], size=sample_size)
+                if self.bootstrap
+                else np.arange(X_array.shape[0])
+            )
+            tree_weights = None if weights is None else weights[indices]
+            tree = _BoundedTree(
+                max_depth=self.max_depth,
+                max_leaf_nodes=self.max_leaf_nodes,
+                min_samples_split=self.min_samples_split,
+                min_samples_leaf=self.min_samples_leaf,
+                min_impurity_decrease=self.min_impurity_decrease,
+                max_features=self.max_features,
+                monotonic_cst=self.monotonic_cst,
+                value_bounds=self.value_bounds_,
+                random_state=int(rng.integers(np.iinfo(np.int32).max)),
+            ).fit(X_array[indices], y_array[indices], tree_weights)
+            self._bounded_estimators_.append(tree)
+
+        self.estimators_ = self._bounded_estimators_
+        self.n_outputs_ = 1
+        self._value_bounds_embedded_ = True
         return self
 
     def _unimodality_predict(self, X):
         X_array = validate_data(self, X, reset=False)
         return np.mean([tree.predict(X_array) for tree in self.estimators_], axis=0)
+
+    def _bounded_predict(self, X):
+        X_array = validate_data(self, X, reset=False)
+        return np.mean(
+            [tree.predict(X_array) for tree in self._bounded_estimators_], axis=0
+        )
+
+    @property
+    def feature_importances_(self):
+        if hasattr(self, "_bounded_estimators_"):
+            importances = np.mean(
+                [tree.feature_importances_ for tree in self._bounded_estimators_],
+                axis=0,
+            )
+            total = importances.sum()
+            return importances / total if total > 0 else importances
+        if getattr(self, "unimodality_constraint_", None) is not None:
+            return np.mean(
+                [tree.feature_importances_ for tree in self.estimators_], axis=0
+            )
+        return super().feature_importances_
 
 
 def _bootstrap_size(max_samples, n_samples):

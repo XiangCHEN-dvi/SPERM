@@ -62,6 +62,10 @@ dmypy.json
 # Documentation builds
 docs/_build/
 docs/source/_build/
+docs/api/generated/
+
+# Generated example figures
+assets/*.png
 
 # Notebooks and interactive Python
 .ipynb_checkpoints/

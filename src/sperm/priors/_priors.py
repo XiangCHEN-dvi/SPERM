@@ -82,12 +82,12 @@ class Unimodality:
 
 @dataclass(frozen=True, slots=True)
 class Convex:
-    """Require convexity along a feature while all other features are fixed."""
+    """Require the model output to be jointly convex in all input features."""
 
 
 @dataclass(frozen=True, slots=True)
 class Concave:
-    """Require concavity along a feature while all other features are fixed."""
+    """Require the model output to be jointly concave in all input features."""
 
 
 Feature: TypeAlias = int | str
@@ -102,7 +102,7 @@ FeaturePriors: TypeAlias = Mapping[
 
 @dataclass(frozen=True, slots=True)
 class Priors:
-    """Group global value priors and coordinate-wise shape priors."""
+    """Group output, feature-wise, and cross-feature shape priors."""
 
     value: ValueBound | Sequence[ValueBound] | None = None
     features: FeaturePriors = field(default_factory=dict)

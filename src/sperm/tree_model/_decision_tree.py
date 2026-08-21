@@ -5,6 +5,7 @@ from sklearn.tree import DecisionTreeRegressor as SKDecisionTreeRegressor
 from sklearn.utils.validation import validate_data
 
 from ._base import _TreePriorMixin
+from ._bounded_tree import _BoundedTree
 from ._unimodal_tree import _UnimodalTree
 
 
@@ -54,6 +55,8 @@ class DecisionTreeRegressor(_TreePriorMixin, SKDecisionTreeRegressor):
             )
         if self.unimodality_constraint_ is not None:
             return self._fit_unimodality(X, y, sample_weight)
+        if np.isfinite(self.value_bounds_).any():
+            return self._fit_bounded(X, y, sample_weight)
         return super().fit(
             X,
             y,
@@ -101,24 +104,62 @@ class DecisionTreeRegressor(_TreePriorMixin, SKDecisionTreeRegressor):
         ).fit(X_array, y_array, weights)
         self.n_outputs_ = 1
         self.turning_point_ = self._unimodal_tree_.turning_point_
+        self._value_bounds_embedded_ = True
+        return self
+
+    def _fit_bounded(self, X, y, sample_weight):
+        _validate_bounded_tree_parameters(self)
+        X_array, y_array = validate_data(
+            self,
+            X,
+            y,
+            reset=True,
+            y_numeric=True,
+        )
+        if y_array.ndim != 1:
+            raise ValueError("ValueBound supports single-output regression.")
+        weights = _validate_sample_weight(sample_weight, X_array.shape[0])
+        self._bounded_tree_ = _BoundedTree(
+            max_depth=self.max_depth,
+            max_leaf_nodes=self.max_leaf_nodes,
+            min_samples_split=self.min_samples_split,
+            min_samples_leaf=self.min_samples_leaf,
+            min_impurity_decrease=self.min_impurity_decrease,
+            max_features=self.max_features,
+            monotonic_cst=self.monotonic_cst,
+            value_bounds=self.value_bounds_,
+            random_state=self.random_state,
+        ).fit(X_array, y_array, weights)
+        self.n_outputs_ = 1
+        self._value_bounds_embedded_ = True
         return self
 
     def _unimodality_predict(self, X):
         X_array = validate_data(self, X, reset=False)
         return self._unimodal_tree_.predict(X_array)
 
+    def _bounded_predict(self, X):
+        X_array = validate_data(self, X, reset=False)
+        return self._bounded_tree_.predict(X_array)
+
     @property
     def feature_importances_(self):
+        if hasattr(self, "_bounded_tree_"):
+            return self._bounded_tree_.feature_importances_
         if getattr(self, "unimodality_constraint_", None) is not None:
             return self._unimodal_tree_.feature_importances_
         return super().feature_importances_
 
     def get_depth(self):
+        if hasattr(self, "_bounded_tree_"):
+            return self._bounded_tree_.get_depth()
         if getattr(self, "unimodality_constraint_", None) is not None:
             return self._unimodal_tree_.get_depth()
         return super().get_depth()
 
     def get_n_leaves(self):
+        if hasattr(self, "_bounded_tree_"):
+            return self._bounded_tree_.get_n_leaves()
         if getattr(self, "unimodality_constraint_", None) is not None:
             return self._unimodal_tree_.get_n_leaves()
         return super().get_n_leaves()
@@ -133,6 +174,25 @@ def _validate_sample_weight(sample_weight, n_samples):
     if np.any(weights < 0) or not np.all(np.isfinite(weights)):
         raise ValueError("sample_weight must contain finite non-negative values.")
     return weights
+
+
+def _validate_bounded_tree_parameters(estimator):
+    if estimator.criterion != "squared_error":
+        raise ValueError("Training-time ValueBound requires criterion='squared_error'.")
+    if getattr(estimator, "splitter", "best") != "best":
+        raise ValueError("Training-time ValueBound requires splitter='best'.")
+    if estimator.ccp_alpha != 0 or estimator.min_weight_fraction_leaf != 0:
+        raise ValueError(
+            "ccp_alpha and min_weight_fraction_leaf are not supported with "
+            "training-time ValueBound."
+        )
+    if not isinstance(estimator.min_samples_leaf, int) or not isinstance(
+        estimator.min_samples_split, int
+    ):
+        raise TypeError(
+            "Training-time ValueBound requires integer min_samples_leaf and "
+            "min_samples_split."
+        )
 
 
 __all__ = ["DecisionTreeRegressor"]

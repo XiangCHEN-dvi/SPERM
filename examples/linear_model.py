@@ -1,51 +1,54 @@
-# Author: Xiang CHEN <xiangchen.ai@outlook.com>
-# License: Apache Software License
+"""Show LinearRegression with one and two simultaneous shape priors."""
 
 import matplotlib.pyplot as plt
 import numpy as np
+from _combination_plot import Combination, plot_combinations
 
-from sperm.linear_model import LinearRegression, Ridge
-from sperm.priors import Decreasing, Increasing, Lipschitz
+from sperm.linear_model import LinearRegression
+from sperm.priors import Increasing, Priors, SlopeBound
 
-###################################################
-# Preparation
-###################################################
-prior_sets = [
-    None,
-    {0: Decreasing()},
-    {0: Lipschitz(1)},
-    {0: (Increasing(), Lipschitz(2))},
-]
 
-X = np.array([0, 1, 2, 3, 4]).reshape([-1, 1])
-y = np.array([1, 3.1, 5.5, 7.5, 9.9])
+def signal(x):
+    """Underlying increasing function with slope below the requested cap."""
+    return 0.7 * x + 0.15
 
-###################################################
-# LinearRegression
-###################################################
-plt.figure(figsize=(16,16))
-for idx, priors in enumerate(prior_sets):
-    reg = LinearRegression(priors=priors).fit(X, y)
-    y_pred = reg.predict(X)
-    plt.subplot(2, 2, idx+1)
-    plt.plot(X, y, 'r+', label='truth')
-    plt.plot(X, y_pred, 'k-', label='pred')
-    plt.legend()
-    plt.title(reg.priors)
-plt.tight_layout()
-plt.savefig('LinearRegression.png')
 
-###################################################
-# Ridge
-###################################################
-plt.figure(figsize=(16,16))
-for idx, priors in enumerate(prior_sets):
-    reg = Ridge(priors=priors).fit(X, y)
-    y_pred = reg.predict(X)
-    plt.subplot(2, 2, idx+1)
-    plt.plot(X, y, 'r+', label='truth')
-    plt.plot(X, y_pred, 'k-', label='pred')
-    plt.legend()
-    plt.title(reg.priors)
-plt.tight_layout()
-plt.savefig('Ridge.png')
+def make_model(priors):
+    return LinearRegression(priors=priors)
+
+
+def plot_example():
+    rng = np.random.default_rng(2)
+    X = np.linspace(-3, 3, 36).reshape(-1, 1)
+    y = signal(X[:, 0]) + rng.normal(0, 0.7, X.shape[0])
+    y[[2, 31]] += np.array([1.8, -1.5])
+    grid = np.linspace(-3.4, 3.4, 500).reshape(-1, 1)
+    increasing = Increasing()
+    slope = SlopeBound(upper=0.8)
+    rows = (
+        (
+            Combination("Monotonicity", Priors(features={0: increasing})),
+            Combination("SlopeBound", Priors(features={0: slope})),
+        ),
+        (
+            Combination(
+                "Monotonicity + SlopeBound",
+                Priors(features={0: (increasing, slope)}),
+            ),
+        ),
+    )
+    return plot_combinations(
+        X=X,
+        y=y,
+        grid=grid,
+        signal=signal,
+        rows=rows,
+        make_model=make_model,
+        output_name="linear_model_prior_combinations.png",
+    )
+
+
+if __name__ == "__main__":
+    figure, output = plot_example()
+    print(f"Saved figure to {output}")
+    plt.show()

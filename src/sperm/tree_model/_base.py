@@ -10,9 +10,14 @@ from ..priors._tree_compiler import compile_tree_priors
 
 
 class _TreePriorMixin:
-    """Compile tree priors and project predictions into value bounds."""
+    """Compile tree priors and dispatch predictions to constrained growers."""
 
     def _prepare_priors(self, X) -> None:
+        if hasattr(self, "_bounded_tree_"):
+            del self._bounded_tree_
+        if hasattr(self, "_bounded_estimators_"):
+            del self._bounded_estimators_
+        self._value_bounds_embedded_ = False
         if self.priors is None:
             self.priors_ = None
             self.value_bounds_ = (-np.inf, np.inf)
@@ -53,8 +58,14 @@ class _TreePriorMixin:
             and getattr(self, "unimodality_constraint_", None) is not None
         ):
             predictions = self._unimodality_predict(X)
+        elif hasattr(self, "_bounded_tree_") or hasattr(
+            self, "_bounded_estimators_"
+        ):
+            predictions = self._bounded_predict(X)
         else:
             predictions = super().predict(X)
+        if self._value_bounds_embedded_:
+            return predictions
         return np.clip(predictions, *self.value_bounds_)
 
     def _fit_unknown_monotonic_direction(

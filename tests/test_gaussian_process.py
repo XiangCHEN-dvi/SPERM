@@ -153,7 +153,8 @@ def test_unimodality_shape_is_global(prior, sign):
     sampled_turn = np.argmin(shaped_prediction)
     assert np.diff(shaped_prediction[: sampled_turn + 1]).max(initial=0.0) <= 1e-8
     assert np.diff(shaped_prediction[sampled_turn:]).min(initial=0.0) >= -1e-8
-    turn = model.unimodality_candidate_[1]
+    assert model.unimodality_candidate_[0] == 0
+    turn = model.unimodality_candidate_[2]
     derivative = model.basis_.derivative_control_map(0, 1) @ model.posterior_mean_
     assert np.max(sign * derivative[:turn], initial=0.0) <= 1e-6
     assert np.min(sign * derivative[turn:], initial=0.0) >= -1e-6
@@ -203,7 +204,10 @@ def test_unimodality_convex_and_concave_reduce_to_a_monotonic_solution():
     ).fit(X, y)
     prediction = model.predict(np.linspace(-20, 20, 2001).reshape(-1, 1))
     difference = np.diff(prediction)
-    assert model.unimodality_candidate_ in {"increasing", "decreasing"}
+    assert model.unimodality_candidate_ in {
+        (0, "increasing"),
+        (0, "decreasing"),
+    }
     assert difference.min() >= -1e-6 or difference.max() <= 1e-6
 
 
@@ -213,6 +217,48 @@ def test_unimodality_candidate_count_grows_linearly():
         n_basis=13, priors={0: Unimodality("minimum")}
     ).fit(X, y)
     assert model.n_unimodality_candidates_ == 13
+
+
+def test_unimodality_applies_to_one_feature_of_a_multifeature_model():
+    first = np.linspace(-2, 2, 12)
+    second = np.linspace(-3, 3, 24)
+    x0, x1 = np.meshgrid(first, second, indexing="ij")
+    X = np.column_stack((x0.ravel(), x1.ravel()))
+    y = np.sin(X[:, 0]) + (X[:, 1] - 0.4) ** 2
+    model = GaussianProcessRegressor(
+        n_basis=10,
+        alpha=0.01,
+        priors={1: Unimodality("minimum")},
+    ).fit(X, y)
+
+    grid = np.linspace(-20, 20, 2001)
+    left_slice = np.column_stack((np.full_like(grid, -1.0), grid))
+    right_slice = np.column_stack((np.full_like(grid, 1.0), grid))
+    left_prediction = model.predict(left_slice)
+    right_prediction = model.predict(right_slice)
+    turn = model.unimodality_candidate_[2]
+    derivative = model.basis_.derivative_control_map(1, 1) @ model.posterior_mean_
+
+    assert model.unimodality_candidate_[:2] == (1, "minimum")
+    assert np.max(derivative[:turn], initial=0.0) <= 1e-6
+    assert np.min(derivative[turn:], initial=0.0) >= -1e-6
+    assert np.ptp(right_prediction - left_prediction) <= 1e-8
+    assert abs(np.mean(right_prediction - left_prediction)) > 0.1
+
+
+def test_unimodality_currently_accepts_at_most_one_feature():
+    X = np.column_stack(
+        (np.linspace(-2, 2, 30), np.linspace(-3, 3, 30) ** 3)
+    )
+    y = X[:, 0] ** 2 + X[:, 1] ** 2
+
+    with pytest.raises(ValueError, match="at most one feature"):
+        GaussianProcessRegressor(
+            priors={
+                0: Unimodality("minimum"),
+                1: Unimodality("minimum"),
+            }
+        ).fit(X, y)
 
 
 @pytest.mark.parametrize(
@@ -238,9 +284,5 @@ def test_rejects_unsupported_or_degrading_combinations():
         ).fit(X, y)
     with pytest.raises(ValueError, match="exactly one feature"):
         GaussianProcessRegressor(priors=Priors(value=ValueBound(upper=1))).fit(
-            np.column_stack((X, X**2)), y
-        )
-    with pytest.raises(ValueError, match="exactly one input feature"):
-        GaussianProcessRegressor(priors={0: Unimodality("minimum")}).fit(
             np.column_stack((X, X**2)), y
         )
